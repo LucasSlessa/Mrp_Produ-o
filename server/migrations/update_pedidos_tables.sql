@@ -1,0 +1,17 @@
+-- Atualizar tabela pedidos
+ALTER TABLE pedidos
+  MODIFY COLUMN status ENUM('pendente', 'aprovado', 'enviado', 'recebido', 'cancelado') DEFAULT 'pendente',
+  MODIFY COLUMN valor_total DECIMAL(10,2) NOT NULL,
+  MODIFY COLUMN data_pedido DATETIME DEFAULT CURRENT_TIMESTAMP,
+  MODIFY COLUMN data_previsao DATE,
+  MODIFY COLUMN data_recebimento DATE,
+  MODIFY COLUMN observacoes TEXT,
+  ADD COLUMN IF NOT EXISTS created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  ADD COLUMN IF NOT EXISTS updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+-- Atualizar tabela pedido_itens
+ALTER TABLE pedido_itens
+  MODIFY COLUMN quantidade DECIMAL(10,2) NOT NULL,
+  MODIFY COLUMN valor_unitario DECIMAL(10,2) NOT NULL,
+  MODIFY COLUMN valor_total DECIMAL(10,2) NOT NULL,
+  ADD COLUMN IF NOT EXISTS created_at DATETIME DEFAULT CURRENT_TIMESTAMP; 

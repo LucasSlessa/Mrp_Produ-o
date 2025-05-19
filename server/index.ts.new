@@ -1,0 +1,279 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import { createPool, RowDataPacket } from 'mysql2/promise';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
+import * as jwt from 'jsonwebtoken';
+
+// Interfaces para tipagem
+interface Usuario extends RowDataPacket {
+  id: string;
+  email: string;
+  nome: string;
+  senha: string;
+}
+
+interface Mensagem extends RowDataPacket {
+  id: string;
+  usuario_id: string;
+  usuario_nome: string;
+  conteudo: string;
+  created_at: string;
+}
+
+interface Contagem extends RowDataPacket {
+  count: number;
+}
+
+const app = express();
+const port = process.env.PORT || 3001;
+
+// Armazenar as conexões SSE ativas
+const sseClients = new Set<{ res: express.Response; userId: string }>();
+
+// Configuração do banco de dados
+const pool = createPool({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASS || '',
+  database: process.env.DB_NAME || 'mrp_system',
+});
+
+// Middleware
+app.use(express.json());
+app.use(cookieParser());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true,
+}));
+
+// Middleware de autenticação
+const authMiddleware = async (req: any, res: any, next: any) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) {
+      return res.status(401).json({ message: 'Não autorizado' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+    const [rows] = await pool.execute<Usuario[]>(
+      'SELECT id, email, nome FROM usuarios WHERE id = ?',
+      [decoded.userId]
+    );
+    const user = rows[0];
+
+    if (!user) {
+      return res.status(401).json({ message: 'Usuário não encontrado' });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Token inválido' });
+  }
+};
+
+// Rotas de autenticação
+app.post('/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const [rows] = await pool.execute<Usuario[]>(
+      'SELECT * FROM usuarios WHERE email = ?',
+      [email]
+    );
+
+    const user = rows[0];
+    if (!user || !await bcrypt.compare(password, user.senha)) {
+      return res.status(401).json({ message: 'Credenciais inválidas' });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    const { senha, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Erro no login:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
+app.post('/auth/register', async (req, res) => {
+  try {
+    const { email, password, nome } = req.body;
+    const id = uuidv4();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await pool.execute(
+      'INSERT INTO usuarios (id, email, nome, senha) VALUES (?, ?, ?, ?)',
+      [id, email, nome, hashedPassword]
+    );
+
+    const token = jwt.sign(
+      { userId: id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ id, email, nome });
+  } catch (error) {
+    console.error('Erro no cadastro:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
+app.post('/auth/logout', (req, res) => {
+  res.clearCookie('token');
+  res.json({ message: 'Logout realizado com sucesso' });
+});
+
+app.get('/auth/me', authMiddleware, (req: any, res) => {
+  res.json(req.user);
+});
+
+// Rotas do chat
+app.get('/chat/mensagens', authMiddleware, async (req, res) => {
+  try {
+    const [messages] = await pool.execute<Mensagem[]>(`
+      SELECT m.id, m.usuario_id, u.nome as usuario_nome, m.conteudo, m.created_at
+      FROM mensagens m
+      INNER JOIN usuarios u ON m.usuario_id = u.id
+      ORDER BY m.created_at DESC
+      LIMIT 50
+    `);
+    res.json(messages);
+  } catch (error) {
+    console.error('Erro ao buscar mensagens:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
+app.post('/chat/mensagens', authMiddleware, async (req: any, res) => {
+  try {
+    const { conteudo } = req.body;
+    const usuario_id = req.user.id;
+    const id = uuidv4();
+
+    await pool.execute(
+      'INSERT INTO mensagens (id, usuario_id, conteudo) VALUES (?, ?, ?)',
+      [id, usuario_id, conteudo]
+    );
+
+    const [messages] = await pool.execute<Mensagem[]>(`
+      SELECT m.id, m.usuario_id, u.nome as usuario_nome, m.conteudo, m.created_at
+      FROM mensagens m
+      INNER JOIN usuarios u ON m.usuario_id = u.id
+      WHERE m.id = ?
+    `, [id]);
+
+    const message = messages[0];
+
+    // Notificar todos os clientes conectados
+    sseClients.forEach(client => {
+      client.res.write(`data: ${JSON.stringify(message)}\n\n`);
+    });
+
+    res.json(message);
+  } catch (error) {
+    console.error('Erro ao enviar mensagem:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
+app.get('/chat/stream', authMiddleware, (req: any, res) => {
+  // Configurar cabeçalhos para SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+
+  // Adicionar cliente à lista de conexões
+  const client = { res, userId: req.user.id };
+  sseClients.add(client);
+
+  // Enviar heartbeat a cada 30 segundos para manter a conexão
+  const heartbeat = setInterval(() => {
+    res.write(':\n\n');
+  }, 30000);
+
+  // Limpar quando o cliente desconectar
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients.delete(client);
+  });
+});
+
+// Rotas do dashboard
+app.get('/dashboard/counts', authMiddleware, async (req, res) => {
+  try {
+    const [materials] = await pool.execute<Contagem[]>('SELECT COUNT(*) as count FROM materiais');
+    const [products] = await pool.execute<Contagem[]>('SELECT COUNT(*) as count FROM produtos');
+    const [orders] = await pool.execute<Contagem[]>('SELECT COUNT(*) as count FROM pedidos');
+
+    res.json({
+      materials: materials[0].count,
+      products: products[0].count,
+      orders: orders[0].count,
+    });
+  } catch (error) {
+    console.error('Erro ao buscar contagens:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
+app.get('/dashboard/recent-orders', authMiddleware, async (req, res) => {
+  try {
+    const [orders] = await pool.execute<RowDataPacket[]>(`
+      SELECT p.id, p.produto_id, pr.nome as produto_nome, p.quantidade, 
+             p.data_entrega, p.status
+      FROM pedidos p
+      LEFT JOIN produtos pr ON p.produto_id = pr.id
+      ORDER BY p.created_at DESC
+      LIMIT 5
+    `);
+    res.json(orders);
+  } catch (error) {
+    console.error('Erro ao buscar pedidos recentes:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
+app.get('/dashboard/low-stock-materials', authMiddleware, async (req, res) => {
+  try {
+    const [materials] = await pool.execute<RowDataPacket[]>(`
+      SELECT id, nome, estoque_atual, unidade
+      FROM materiais
+      WHERE estoque_atual < 10
+      ORDER BY estoque_atual ASC
+      LIMIT 5
+    `);
+    res.json(materials);
+  } catch (error) {
+    console.error('Erro ao buscar materiais com baixo estoque:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Servidor rodando na porta ${port}`);
+}); 
