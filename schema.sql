@@ -1,8 +1,9 @@
 -- Criar o banco de dados
-CREATE DATABASE IF NOT EXISTS mrp_system;
-USE mrp_system;
+CREATE DATABASE IF NOT EXISTS project_bolt;
+USE project_bolt;
 
 -- Drops em ordem para respeitar as foreign keys
+DROP TABLE IF EXISTS historico_pedidos;
 DROP TABLE IF EXISTS pedido_itens;
 DROP TABLE IF EXISTS pedidos;
 DROP TABLE IF EXISTS notificacoes;
@@ -19,7 +20,7 @@ CREATE TABLE usuarios (
     nome VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL,
     senha VARCHAR(255) NOT NULL,
-    tipo ENUM('admin', 'comprador', 'producao') NOT NULL DEFAULT 'producao',
+    role VARCHAR(20) NOT NULL DEFAULT 'user',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE INDEX idx_email (email(100))
@@ -32,8 +33,7 @@ CREATE TABLE fornecedores (
     email VARCHAR(100),
     telefone VARCHAR(20),
     cnpj VARCHAR(14) UNIQUE,
-    prazo_entrega INT NOT NULL DEFAULT 0, -- em dias
-    condicao_pagamento VARCHAR(50),
+    endereco TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -122,16 +122,15 @@ CREATE TABLE pedido_itens (
     FOREIGN KEY (material_id) REFERENCES materiais(id)
 );
 
--- Criar tabela de notificações
-CREATE TABLE notificacoes (
+-- Criar tabela de histórico de pedidos
+CREATE TABLE historico_pedidos (
     id VARCHAR(36) PRIMARY KEY,
+    pedido_id VARCHAR(36) NOT NULL,
     usuario_id VARCHAR(36) NOT NULL,
-    titulo VARCHAR(100) NOT NULL,
-    mensagem TEXT NOT NULL,
-    tipo ENUM('info', 'warning', 'error', 'success') NOT NULL DEFAULT 'info',
-    lida BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+    status VARCHAR(20) NOT NULL,
+    data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 
 -- Criar tabela de mensagens
@@ -144,6 +143,18 @@ CREATE TABLE mensagens (
     FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
+-- Criar tabela de notificações
+CREATE TABLE notificacoes (
+    id VARCHAR(36) PRIMARY KEY,
+    usuario_id VARCHAR(36) NOT NULL,
+    titulo VARCHAR(100) NOT NULL,
+    mensagem TEXT NOT NULL,
+    tipo ENUM('info', 'warning', 'error', 'success') NOT NULL DEFAULT 'info',
+    lida BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+
 -- Inserir usuário administrador padrão (senha: admin123)
-INSERT INTO usuarios (id, nome, email, senha, tipo) 
+INSERT INTO usuarios (id, nome, email, senha, role) 
 VALUES (UUID(), 'Administrador', 'admin@sistema.com', '$2b$10$8bEHQvKlrwHQxWqoYkQOvOkU7ankQnNpJAw0EKbP0MF1WJe7TPy8.', 'admin');

@@ -120,6 +120,19 @@ router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     
+    // Verificar se existem pedidos para este fornecedor
+    const [pedidos] = await pool.execute<RowDataPacket[]>(
+      'SELECT COUNT(*) as total FROM pedidos WHERE fornecedor_id = ?',
+      [id]
+    );
+
+    if (pedidos[0].total > 0) {
+      return res.status(400).json({ 
+        message: 'Não é possível excluir este fornecedor pois existem pedidos vinculados a ele.',
+        code: 'FORNECEDOR_COM_PEDIDOS'
+      });
+    }
+
     const [result] = await pool.execute(
       'DELETE FROM fornecedores WHERE id = ?',
       [id]

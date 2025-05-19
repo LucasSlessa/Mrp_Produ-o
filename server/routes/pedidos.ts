@@ -17,8 +17,8 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
         u.nome as usuario_nome,
         GROUP_CONCAT(CONCAT(m.nome, ' (', pi.quantidade, ' ', m.unidade, ')')) as itens
       FROM pedidos p
-      INNER JOIN fornecedores f ON p.fornecedor_id = f.id
-      INNER JOIN usuarios u ON p.usuario_id = u.id
+      LEFT JOIN fornecedores f ON p.fornecedor_id = f.id
+      LEFT JOIN usuarios u ON p.usuario_id = u.id
       LEFT JOIN pedido_itens pi ON p.id = pi.pedido_id
       LEFT JOIN materiais m ON pi.material_id = m.id
       GROUP BY p.id

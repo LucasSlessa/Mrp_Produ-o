@@ -17,6 +17,8 @@ import {
   TableRow,
   TextField,
   Typography,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import { api } from '../services/api';
@@ -40,6 +42,11 @@ export default function Fornecedores() {
     email: '',
     telefone: '',
     endereco: '',
+  });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success',
   });
 
   useEffect(() => {
@@ -102,9 +109,25 @@ export default function Fornecedores() {
     
     try {
       await api.delete(`/fornecedores/${id}`);
+      setSnackbar({
+        open: true,
+        message: 'Fornecedor excluído com sucesso!',
+        severity: 'success',
+      });
       carregarFornecedores();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao excluir fornecedor:', error);
+      let mensagem = 'Erro ao excluir fornecedor. Por favor, tente novamente.';
+      
+      if (error.response?.data?.code === 'FORNECEDOR_COM_PEDIDOS') {
+        mensagem = error.response.data.message;
+      }
+      
+      setSnackbar({
+        open: true,
+        message: mensagem,
+        severity: 'error',
+      });
     }
   };
 
@@ -223,6 +246,20 @@ export default function Fornecedores() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 } 
