@@ -166,4 +166,4 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 ## 📞 Suporte
 
-Para suporte, envie um email para [seu-email@dominio.com] ou abra uma issue no repositório.
+Para suporte, envie um email para [lessalucas1102@gmail.com] ou abra uma issue no repositório.
