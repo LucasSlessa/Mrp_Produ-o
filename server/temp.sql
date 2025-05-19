@@ -1,0 +1,11 @@
+USE project_bolt;
+
+CREATE TABLE IF NOT EXISTS historico_pedidos (
+  id VARCHAR(36) PRIMARY KEY,
+  pedido_id VARCHAR(36) NOT NULL,
+  usuario_id VARCHAR(36) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (pedido_id) REFERENCES pedidos(id) ON DELETE CASCADE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+); 

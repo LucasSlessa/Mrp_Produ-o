@@ -323,6 +323,88 @@ app.use('/produtos', authMiddleware, produtosRoutes);
 app.use('/pedidos', authMiddleware, pedidosRoutes);
 app.use('/fornecedores', authMiddleware, fornecedoresRoutes);
 
+// Rota para obter detalhes de um pedido específico
+app.get('/pedidos/:id', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const [pedidos] = await pool.execute<RowDataPacket[]>(
+      `SELECT 
+        p.*,
+        f.nome as fornecedor_nome,
+        u.nome as usuario_nome
+      FROM pedidos p
+      LEFT JOIN fornecedores f ON p.fornecedor_id = f.id
+      LEFT JOIN usuarios u ON p.usuario_id = u.id
+      WHERE p.id = ?`,
+      [req.params.id]
+    );
+
+    if (pedidos.length === 0) {
+      return res.status(404).json({ message: 'Pedido não encontrado' });
+    }
+
+    const pedido = pedidos[0];
+
+    // Buscar itens do pedido
+    const [itens] = await pool.execute<RowDataPacket[]>(
+      `SELECT 
+        pi.*,
+        m.nome as material_nome,
+        m.unidade
+      FROM pedido_itens pi
+      LEFT JOIN materiais m ON pi.material_id = m.id
+      WHERE pi.pedido_id = ?`,
+      [pedido.id]
+    );
+
+    // Buscar histórico de atualizações
+    const [historico] = await pool.execute<RowDataPacket[]>(
+      `SELECT 
+        h.data,
+        h.status,
+        u.nome as usuario_nome
+      FROM historico_pedidos h
+      LEFT JOIN usuarios u ON h.usuario_id = u.id
+      WHERE h.pedido_id = ?
+      ORDER BY h.data DESC`,
+      [pedido.id]
+    );
+
+    // Registrar a visualização no histórico se não existir
+    if (historico.length === 0) {
+      const historicoId = uuidv4();
+      await pool.execute(
+        'INSERT INTO historico_pedidos (id, pedido_id, usuario_id, status) VALUES (?, ?, ?, ?)',
+        [historicoId, pedido.id, (req as AuthRequest).user.id, pedido.status]
+      );
+      
+      // Buscar o registro recém-criado
+      const [novoHistorico] = await pool.execute<RowDataPacket[]>(
+        `SELECT 
+          h.data,
+          h.status,
+          u.nome as usuario_nome
+        FROM historico_pedidos h
+        LEFT JOIN usuarios u ON h.usuario_id = u.id
+        WHERE h.id = ?`,
+        [historicoId]
+      );
+
+      if (novoHistorico.length > 0) {
+        historico.push(novoHistorico[0]);
+      }
+    }
+
+    res.json({
+      ...pedido,
+      itens,
+      historico
+    });
+  } catch (error) {
+    console.error('Erro ao buscar detalhes do pedido:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
   iniciarAgendamentos();

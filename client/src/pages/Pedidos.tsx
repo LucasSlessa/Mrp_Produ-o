@@ -22,8 +22,9 @@ import {
   TextField,
   Typography,
   SelectChangeEvent,
+  Divider,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, Visibility as VisibilityIcon } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { api } from '../services/api';
@@ -64,7 +65,9 @@ export default function Pedidos() {
   const [materiais, setMateriais] = useState<Material[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
   const [openStatusDialog, setOpenStatusDialog] = useState(false);
+  const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
   const [selectedPedido, setSelectedPedido] = useState<Pedido | null>(null);
+  const [selectedPedidoDetails, setSelectedPedidoDetails] = useState<Pedido | null>(null);
   const [novoPedido, setNovoPedido] = useState({
     fornecedor_id: '',
     data_previsao: '',
@@ -135,6 +138,21 @@ export default function Pedidos() {
   const handleCloseStatusDialog = () => {
     setOpenStatusDialog(false);
     setSelectedPedido(null);
+  };
+
+  const handleOpenDetailsDialog = async (pedido: Pedido) => {
+    try {
+      const response = await api.get(`/pedidos/${pedido.id}`);
+      setSelectedPedidoDetails(response.data);
+      setOpenDetailsDialog(true);
+    } catch (error) {
+      console.error('Erro ao carregar detalhes do pedido:', error);
+    }
+  };
+
+  const handleCloseDetailsDialog = () => {
+    setOpenDetailsDialog(false);
+    setSelectedPedidoDetails(null);
   };
 
   const handleAddItem = () => {
@@ -264,7 +282,16 @@ export default function Pedidos() {
                   <TableCell>
                     <IconButton
                       color="primary"
+                      onClick={() => handleOpenDetailsDialog(pedido)}
+                      sx={{ mr: 1 }}
+                      title="Ver detalhes"
+                    >
+                      <VisibilityIcon />
+                    </IconButton>
+                    <IconButton
+                      color="primary"
                       onClick={() => handleOpenStatusDialog(pedido)}
+                      title="Atualizar status"
                     >
                       <EditIcon />
                     </IconButton>
@@ -493,6 +520,149 @@ export default function Pedidos() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseStatusDialog}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog de Detalhes do Pedido */}
+      <Dialog open={openDetailsDialog} onClose={handleCloseDetailsDialog} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Detalhes do Pedido {selectedPedidoDetails?.numero_pedido}
+        </DialogTitle>
+        <DialogContent>
+          {selectedPedidoDetails && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom>
+                    Informações Gerais
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="subtitle2">Fornecedor:</Typography>
+                      <Typography>{selectedPedidoDetails.fornecedor_nome}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="subtitle2">Status:</Typography>
+                      <Typography>
+                        <Box
+                          component="span"
+                          sx={{
+                            backgroundColor: getStatusColor(selectedPedidoDetails.status),
+                            color: 'white',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            display: 'inline-block',
+                          }}
+                        >
+                          {selectedPedidoDetails.status.charAt(0).toUpperCase() + selectedPedidoDetails.status.slice(1)}
+                        </Box>
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="subtitle2">Data do Pedido:</Typography>
+                      <Typography>
+                        {format(new Date(selectedPedidoDetails.data_pedido), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="subtitle2">Data de Previsão:</Typography>
+                      <Typography>
+                        {format(new Date(selectedPedidoDetails.data_previsao), 'dd/MM/yyyy', { locale: ptBR })}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2">Observações:</Typography>
+                      <Typography>{selectedPedidoDetails.observacoes || 'Nenhuma observação'}</Typography>
+                    </Grid>
+                  </Grid>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Itens do Pedido
+                  </Typography>
+                  <TableContainer component={Paper}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Material</TableCell>
+                          <TableCell>Quantidade</TableCell>
+                          <TableCell>Valor Unitário</TableCell>
+                          <TableCell>Total</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {selectedPedidoDetails.itens?.map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{item.material_nome}</TableCell>
+                            <TableCell>{item.quantidade} {item.unidade}</TableCell>
+                            <TableCell>
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(item.valor_unitario)}
+                            </TableCell>
+                            <TableCell>
+                              {new Intl.NumberFormat('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                              }).format(item.valor_total)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Grid>
+
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Histórico de Atualizações
+                  </Typography>
+                  <TableContainer component={Paper}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Data</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Usuário</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {selectedPedidoDetails.historico?.map((registro, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              {format(new Date(registro.data), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                            </TableCell>
+                            <TableCell>
+                              <Box
+                                component="span"
+                                sx={{
+                                  backgroundColor: getStatusColor(registro.status),
+                                  color: 'white',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  display: 'inline-block',
+                                }}
+                              >
+                                {registro.status.charAt(0).toUpperCase() + registro.status.slice(1)}
+                              </Box>
+                            </TableCell>
+                            <TableCell>{registro.usuario_nome}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDetailsDialog}>Fechar</Button>
         </DialogActions>
       </Dialog>
     </Box>
