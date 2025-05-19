@@ -35,9 +35,7 @@ const Login = () => {
         <div className="flex justify-center">
           <School className="h-12 w-12 text-blue-600" />
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sistema MRP Univap
-        </h2>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">MRP Univap</h1>
         <p className="mt-2 text-center text-sm text-gray-600">
           Faça login para acessar o sistema
         </p>

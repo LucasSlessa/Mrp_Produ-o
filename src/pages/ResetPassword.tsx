@@ -38,9 +38,7 @@ const ResetPassword = () => {
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
           Redefinir senha
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Sistema MRP Univap
-        </p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">MRP Univap</h1>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">

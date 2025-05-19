@@ -1,4 +1,4 @@
-# Sistema MRP (Manufacturing Resource Planning)
+# MRP Univap
 
 Sistema de Planejamento de Recursos de Manufatura desenvolvido com React, TypeScript e Node.js.
 
