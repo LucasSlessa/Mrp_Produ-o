@@ -306,7 +306,7 @@ app.get('/dashboard/low-stock-materials', authMiddleware, async (req: Request, r
     const [materials] = await pool.execute<RowDataPacket[]>(`
       SELECT id, nome, estoque_atual, unidade
       FROM materiais
-      WHERE estoque_atual < 10
+      WHERE estoque_atual < estoque_minimo
       ORDER BY estoque_atual ASC
       LIMIT 5
     `);
