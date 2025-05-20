@@ -229,4 +229,58 @@ router.get('/filtro/pendentes', authMiddleware, async (req: Request, res: Respon
   }
 });
 
+// Buscar dados para o dashboard
+router.get('/dashboard', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    // Buscar pedidos pendentes
+    const [pedidosPendentes] = await pool.execute<RowDataPacket[]>(`
+      SELECT 
+        p.*,
+        f.nome as fornecedor_nome,
+        u.nome as usuario_nome
+      FROM pedidos p
+      LEFT JOIN fornecedores f ON p.fornecedor_id = f.id
+      LEFT JOIN usuarios u ON p.usuario_id = u.id
+      WHERE p.status = 'pendente'
+      ORDER BY p.created_at DESC
+    `);
+
+    // Buscar pedidos atrasados
+    const [pedidosAtrasados] = await pool.execute<RowDataPacket[]>(`
+      SELECT 
+        p.*,
+        f.nome as fornecedor_nome,
+        u.nome as usuario_nome
+      FROM pedidos p
+      LEFT JOIN fornecedores f ON p.fornecedor_id = f.id
+      LEFT JOIN usuarios u ON p.usuario_id = u.id
+      WHERE p.status IN ('pendente', 'aprovado', 'enviado')
+      AND p.data_previsao < CURDATE()
+      ORDER BY p.data_previsao ASC
+    `);
+
+    // Buscar últimos pedidos
+    const [ultimosPedidos] = await pool.execute<RowDataPacket[]>(`
+      SELECT 
+        p.*,
+        f.nome as fornecedor_nome,
+        u.nome as usuario_nome
+      FROM pedidos p
+      LEFT JOIN fornecedores f ON p.fornecedor_id = f.id
+      LEFT JOIN usuarios u ON p.usuario_id = u.id
+      ORDER BY p.created_at DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      pedidosPendentes,
+      pedidosAtrasados,
+      ultimosPedidos
+    });
+  } catch (error) {
+    console.error('Erro ao buscar dados do dashboard:', error);
+    res.status(500).json({ message: 'Erro interno do servidor' });
+  }
+});
+
 export default router; 
