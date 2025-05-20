@@ -37,13 +37,11 @@ const Register = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <School className="h-12 w-12 text-blue-600" />
+        <div className="flex flex-col items-center justify-center">
+          <School className="h-12 w-12 text-blue-600 mb-4" />
+          <h1 className="text-3xl font-bold text-gray-900 text-center mb-2">MRP UNIVAP</h1>
+          <h2 className="text-2xl font-extrabold text-gray-900 text-center mb-2">Crie sua conta</h2>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Crie sua conta
-        </h2>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">MRP Univap</h1>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
